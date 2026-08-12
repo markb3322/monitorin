@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Office</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .modal-transition { transition: opacity 0.2s ease, transform 0.2s ease; }
+    .toast { transition: all 0.3s ease; }
+  </style>
+</head>
+<body class="bg-slate-50 font-sans antialiased">
+
+  <!-- main container -->
+  <div class="max-w-5xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+
+    <!-- header -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-3xl font-bold text-slate-800 flex items-center gap-2">
+          <i class="fas fa-building text-indigo-500"></i> Manage Office
+        </h1>
+        <p class="text-sm text-slate-500 mt-1">Supabase connected · full CRUD (edit, delete, view)</p>
+      </div>
+      <button id="openAddModalBtn" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-md transition-colors">
+        <i class="fas fa-plus-circle"></i> Add new office
+      </button>
+    </div>
+
+    <!-- sub paragraphs -->
+    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-8 text-slate-700 text-sm leading-relaxed">
+      <p class="mb-2">
+        <i class="fas fa-database text-indigo-400 mr-2"></i>
+        <strong>Supabase CRUD ready.</strong> This dashboard connects to your <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">offices</code> table.
+        All operations (create, read, update, delete) are persisted in real‑time.
+      </p>
+      <p>
+        <i class="fas fa-arrow-right text-indigo-400 mr-2"></i>
+        Use the <span class="font-medium">“Add new office”</span> button. Each row provides
+        <span class="font-medium">Edit</span> (pencil) and <span class="font-medium">Delete</span> (trash) actions.
+        Changes are instantly saved to Supabase.
+      </p>
+    </div>
+
+    <!-- offices table -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">#</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Office</th>
+              <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
+            </tr>
+          </thead>
+          <tbody id="officeTableBody" class="bg-white divide-y divide-slate-100">
+            <!-- rows injected -->
+          </tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="text-center py-12 text-slate-400 hidden">
+        <i class="fas fa-inbox text-4xl mb-3 block"></i>
+        <p class="text-sm">No offices found. Click “Add new office” to create one.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL (add / edit) ========== -->
+  <div id="officeModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 hidden modal-transition">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 mx-4 transform transition-all">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="modalTitle" class="text-xl font-semibold text-slate-800">New Office</h3>
+        <button id="closeModalBtn" class="text-slate-400 hover:text-slate-600 transition-colors">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+      <div class="mb-6">
+        <label for="officeNameInput" class="block text-sm font-medium text-slate-700 mb-1">Office name</label>
+        <input type="text" id="officeNameInput" placeholder="e.g. Headquarters, Branch A" 
+               class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none transition">
+        <input type="hidden" id="editOfficeId" value="">
+      </div>
+      <div class="flex justify-end gap-3">
+        <button id="cancelModalBtn" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+        <button id="saveOfficeBtn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors">
+          <i class="fas fa-save mr-1"></i> Save & close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== TOAST NOTIFICATION ========== -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 translate-y-20 opacity-0 transition-all duration-300 z-50">
+    <i id="toastIcon" class="fas fa-check-circle text-green-400"></i>
+    <span id="toastMessage">Office saved</span>
+  </div>
+  <!-- Installation Script -->
+  <script src="installer.js"></script>
+  <script>
+    (function() {
+      // ---------- SUPABASE CONFIG ----------
+      // YOUR CREDENTIALS ARE ALREADY HERE
+      const SUPABASE_URL = 'https://optezkkqvrordihanvcw.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wdGV6a2txdnJvcmRpaGFudmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0OTE3ODYsImV4cCI6MjEwMjA2Nzc4Nn0.3PK7GuMHmfRDf63y4sGyOixk6DX3AS4KV3fGvNJiS0M';
+
+      // ---------- GLOBALS ----------
+      let supabaseClient = null;
+      let offices = [];
+      let currentModalMode = 'add';
+
+      // DOM refs
+      const tableBody = document.getElementById('officeTableBody');
+      const emptyState = document.getElementById('emptyState');
+      const modal = document.getElementById('officeModal');
+      const modalTitle = document.getElementById('modalTitle');
+      const officeNameInput = document.getElementById('officeNameInput');
+      const editOfficeId = document.getElementById('editOfficeId');
+      const openAddBtn = document.getElementById('openAddModalBtn');
+      const closeModalBtn = document.getElementById('closeModalBtn');
+      const cancelModalBtn = document.getElementById('cancelModalBtn');
+      const saveOfficeBtn = document.getElementById('saveOfficeBtn');
+      const toast = document.getElementById('toast');
+      const toastMessage = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+
+      // ---------- INIT SUPABASE ----------
+      function initSupabase() {
+        try {
+          console.log('Initializing Supabase...');
+          const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          console.log('✅ Supabase initialized');
+          return client;
+        } catch (e) {
+          console.error('❌ Supabase init error:', e);
+          showToast('Failed to connect to Supabase', 'error');
+          return null;
+        }
+      }
+
+      // ---------- CRUD (Supabase) ----------
+      async function fetchOffices() {
+        if (!supabaseClient) {
+          console.warn('No Supabase client, using mock data');
+          offices = getMockOffices();
+          renderTable();
+          return;
+        }
+        
+        try {
+          console.log('Fetching offices from Supabase...');
+          const { data, error } = await supabaseClient
+            .from('offices')
+            .select('*')
+            .order('id', { ascending: true });
+          
+          if (error) {
+            console.error('❌ Fetch error:', error);
+            throw error;
+          }
+          
+          console.log(`✅ Fetched ${data?.length || 0} offices`);
+          offices = data || [];
+          renderTable();
+        } catch (err) {
+          console.error('fetchOffices error:', err);
+          showToast('Error loading offices: ' + err.message, 'error');
+          offices = [];
+          renderTable();
+        }
+      }
+
+      async function addOffice(name) {
+        if (!supabaseClient) {
+          // Mock mode
+          const list = getMockOffices();
+          const newId = list.length ? Math.max(...list.map(o => o.id)) + 1 : 1;
+          const newOffice = { id: newId, name: name.trim() };
+          list.push(newOffice);
+          saveMockOffices(list);
+          offices = list;
+          renderTable();
+          showToast(`Office "${name.trim()}" added (mock)`, 'success');
+          return;
+        }
+
+        try {
+          console.log('Adding office:', name);
+          const { data, error } = await supabaseClient
+            .from('offices')
+            .insert([{ name: name.trim() }])
+            .select();
+          
+          if (error) {
+            console.error('❌ Insert error:', error);
+            throw error;
+          }
+          
+          if (data && data.length) {
+            console.log('✅ Office added:', data[0]);
+            offices = [...offices, data[0]];
+            renderTable();
+            showToast(`Office "${name.trim()}" added successfully`, 'success');
+          } else {
+            throw new Error('No data returned from insert');
+          }
+        } catch (err) {
+          console.error('addOffice error:', err);
+          showToast('Failed to add office: ' + err.message, 'error');
+        }
+      }
+
+      async function updateOffice(id, newName) {
+        if (!supabaseClient) {
+          // Mock mode
+          const list = getMockOffices();
+          const index = list.findIndex(o => o.id === id);
+          if (index !== -1) {
+            list[index].name = newName.trim();
+            saveMockOffices(list);
+            offices = list;
+            renderTable();
+            showToast(`Office updated (mock)`, 'success');
+          }
+          return;
+        }
+
+        try {
+          console.log('Updating office:', id, newName);
+          const { error } = await supabaseClient
+            .from('offices')
+            .update({ name: newName.trim() })
+            .eq('id', id);
+          
+          if (error) {
+            console.error('❌ Update error:', error);
+            throw error;
+          }
+          
+          const index = offices.findIndex(o => o.id === id);
+          if (index !== -1) {
+            offices[index].name = newName.trim();
+            renderTable();
+            showToast(`Office updated successfully`, 'success');
+          } else {
+            await fetchOffices();
+          }
+        } catch (err) {
+          console.error('updateOffice error:', err);
+          showToast('Failed to update office: ' + err.message, 'error');
+        }
+      }
+
+      async function deleteOffice(id) {
+        if (!confirm('Delete this office?')) return;
+        
+        if (!supabaseClient) {
+          // Mock mode
+          let list = getMockOffices();
+          list = list.filter(o => o.id !== id);
+          saveMockOffices(list);
+          offices = list;
+          renderTable();
+          showToast('Office deleted (mock)', 'success');
+          return;
+        }
+
+        try {
+          console.log('Deleting office:', id);
+          const { error } = await supabaseClient
+            .from('offices')
+            .delete()
+            .eq('id', id);
+          
+          if (error) {
+            console.error('❌ Delete error:', error);
+            throw error;
+          }
+          
+          offices = offices.filter(o => o.id !== id);
+          renderTable();
+          showToast('Office deleted successfully', 'success');
+        } catch (err) {
+          console.error('deleteOffice error:', err);
+          showToast('Failed to delete office: ' + err.message, 'error');
+        }
+      }
+
+      // ---------- MOCK HELPERS ----------
+      function getMockOffices() {
+        const stored = localStorage.getItem('mock_offices');
+        if (stored) {
+          try { return JSON.parse(stored); } catch(e) {}
+        }
+        const defaultOffices = [
+          { id: 1, name: 'Headquarters' },
+          { id: 2, name: 'Branch North' },
+          { id: 3, name: 'Branch South' },
+        ];
+        localStorage.setItem('mock_offices', JSON.stringify(defaultOffices));
+        return defaultOffices;
+      }
+      
+      function saveMockOffices(list) {
+        localStorage.setItem('mock_offices', JSON.stringify(list));
+      }
+
+      // ---------- RENDER TABLE ----------
+      function renderTable() {
+        const list = offices || [];
+        if (list.length === 0) {
+          tableBody.innerHTML = '';
+          emptyState.classList.remove('hidden');
+          return;
+        }
+        emptyState.classList.add('hidden');
+
+        let html = '';
+        list.forEach((office, idx) => {
+          const rowNum = idx + 1;
+          const safeName = escapeHtml(office.name);
+          html += `
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${rowNum}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">${safeName}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                <button class="editBtn text-indigo-500 hover:text-indigo-700 mr-3 transition-colors" data-id="${office.id}" data-name="${safeName}">
+                  <i class="fas fa-pen"></i>
+                </button>
+                <button class="deleteBtn text-red-400 hover:text-red-600 transition-colors" data-id="${office.id}">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+        tableBody.innerHTML = html;
+
+        // attach events
+        document.querySelectorAll('.editBtn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            const name = this.dataset.name;
+            openModal('edit', id, name);
+          });
+        });
+
+        document.querySelectorAll('.deleteBtn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            deleteOffice(id);
+          });
+        });
+      }
+
+      function escapeHtml(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.replace(/[&<>"']/g, m => map[m]);
+      }
+
+      // ---------- MODAL ----------
+      function openModal(mode, id = null, name = '') {
+        currentModalMode = mode;
+        if (mode === 'add') {
+          modalTitle.textContent = 'New Office';
+          officeNameInput.value = '';
+          editOfficeId.value = '';
+        } else {
+          modalTitle.textContent = 'Edit Office';
+          officeNameInput.value = name;
+          editOfficeId.value = id;
+        }
+        modal.classList.remove('hidden');
+        officeNameInput.focus();
+      }
+
+      function closeModal() {
+        modal.classList.add('hidden');
+        officeNameInput.value = '';
+        editOfficeId.value = '';
+      }
+
+      // ---------- SAVE ----------
+      async function handleSave() {
+        const name = officeNameInput.value.trim();
+        if (!name) {
+          alert('Office name cannot be empty.');
+          officeNameInput.focus();
+          return;
+        }
+        
+        const mode = currentModalMode;
+        try {
+          if (mode === 'add') {
+            await addOffice(name);
+          } else {
+            const id = parseInt(editOfficeId.value);
+            if (!id) { alert('Missing ID.'); return; }
+            await updateOffice(id, name);
+          }
+          closeModal();
+        } catch (err) {
+          console.error('Save error:', err);
+        }
+      }
+
+      // ---------- TOAST ----------
+      let toastTimeout = null;
+      function showToast(msg, type = 'success') {
+        toastMessage.textContent = msg;
+        toastIcon.className = type === 'success' ? 'fas fa-check-circle text-green-400' : 'fas fa-exclamation-circle text-red-400';
+        toast.classList.remove('translate-y-20', 'opacity-0');
+        toast.classList.add('translate-y-0', 'opacity-100');
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+          toast.classList.remove('translate-y-0', 'opacity-100');
+          toast.classList.add('translate-y-20', 'opacity-0');
+        }, 4000);
+      }
+
+      // ---------- EVENTS ----------
+      function bindEvents() {
+        openAddBtn.addEventListener('click', () => openModal('add'));
+        closeModalBtn.addEventListener('click', closeModal);
+        cancelModalBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+        saveOfficeBtn.addEventListener('click', handleSave);
+
+        officeNameInput.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); handleSave(); }
+          if (e.key === 'Escape') closeModal();
+        });
+        document.addEventListener('keydown', e => {
+          if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+        });
+      }
+
+      // ---------- INIT ----------
+      async function init() {
+        console.log('🚀 Initializing Office Manager...');
+        supabaseClient = initSupabase();
+        await fetchOffices();
+        bindEvents();
+        console.log('✅ Office manager ready');
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>

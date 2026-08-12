@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monitoring Document</title>
+    <!-- Tailwind via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .modal-transition { transition: opacity 0.2s ease, transform 0.2s ease; }
+        .toast { transition: all 0.3s ease; }
+        .active-filter { background: #6366f1; color: white; }
+        .active-filter:hover { background: #4f46e5; }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans antialiased">
+
+    <div class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+
+        <!-- header -->
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-clipboard-check text-indigo-500"></i> Monitoring Document
+                </h1>
+                <p class="text-sm text-slate-500 mt-1">Supabase connected · daily document monitoring</p>
+            </div>
+        </div>
+
+        <!-- sub paragraphs -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-8 text-slate-700 text-sm leading-relaxed">
+            <p class="mb-2">
+                <i class="fas fa-calendar-day text-indigo-400 mr-2"></i>
+                <strong>Daily monitoring.</strong> This dashboard tracks documents on a daily basis. 
+                Select a description from the filter to view all monitoring records for that document type.
+            </p>
+            <p>
+                <i class="fas fa-arrow-right text-indigo-400 mr-2"></i>
+                Choose a <span class="font-medium">document</span> from the filter to see detailed monitoring records. 
+                Each record shows the date, follow-up response, and provides <span class="font-medium">edit</span> and <span class="font-medium">delete</span> actions.
+                Use the <span class="font-medium">"Add new record"</span> button to add entries for the selected document.
+            </p>
+        </div>
+
+        <!-- Main content: filter + details -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- LEFT: Document Filter (from documents table) -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sticky top-4">
+                    <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                        <i class="fas fa-filter text-indigo-500"></i> Filter by Document
+                    </h3>
+                    <div id="documentFilterList" class="space-y-1 max-h-[70vh] overflow-y-auto">
+                        <!-- documents will be injected here -->
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-slate-200">
+                        <button id="showAllBtn" class="w-full px-3 py-2 text-sm bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors text-slate-700">
+                            <i class="fas fa-list mr-1"></i> Show All
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Details + Add Record -->
+            <div class="lg:col-span-3">
+                <!-- Selected Document Header -->
+                <div id="selectedDocumentHeader" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4 hidden">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                            <h2 id="selectedDocumentTitle" class="text-xl font-bold text-slate-800">Select a document</h2>
+                            <p id="selectedDocumentOffice" class="text-sm text-slate-500 mt-1">Office: <span id="officeDisplay">N/A</span></p>
+                        </div>
+                        <button id="addRecordBtn" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors">
+                            <i class="fas fa-plus-circle"></i> Add new record
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Monitoring Records Table -->
+                <div id="recordsContainer" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">#</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Follow-up Respond</th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recordsTableBody" class="bg-white divide-y divide-slate-100">
+                                <!-- rows injected -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="emptyRecords" class="text-center py-12 text-slate-400 hidden">
+                        <i class="fas fa-inbox text-4xl mb-3 block"></i>
+                        <p class="text-sm">No monitoring records found for this document.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== MODAL (add / edit) ========== -->
+    <div id="docModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 hidden modal-transition">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="modalTitle" class="text-xl font-semibold text-slate-800">New Record</h3>
+                <button id="closeModalBtn" class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <form id="docForm" class="space-y-4">
+                <input type="hidden" id="editDocId" value="">
+                <input type="hidden" id="currentDescription" value="">
+                <input type="hidden" id="currentDocumentId" value="">
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                    <input type="date" id="docDate" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Follow-up Respond</label>
+                    <textarea id="docFollowup" rows="3" placeholder="Enter follow-up response..." class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                    <button type="button" id="cancelModalBtn" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+                    <button type="submit" id="saveDocBtn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors">
+                        <i class="fas fa-save mr-1"></i> Save & close
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========== TOAST ========== -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i id="toastIcon" class="fas fa-check-circle text-green-400"></i>
+        <span id="toastMessage">Saved</span>
+    </div>
+
+    <!-- Installation Script -->
+    <script src="installer.js"></script>
+
+    <script>
+        (function() {
+            // ---------- SUPABASE CONFIG ----------
+            const SUPABASE_URL = 'https://optezkkqvrordihanvcw.supabase.co';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wdGV6a2txdnJvcmRpaGFudmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0OTE3ODYsImV4cCI6MjEwMjA2Nzc4Nn0.3PK7GuMHmfRDf63y4sGyOixk6DX3AS4KV3fGvNJiS0M';
+
+            // ---------- GLOBALS ----------
+            let supabaseClient = null;
+            let documents = []; // from documents table
+            let monitoringData = [];
+            let currentSelectedDocumentId = null;
+            let currentSelectedDescription = null;
+            let currentModalMode = 'add';
+
+            // DOM refs
+            const documentFilterList = document.getElementById('documentFilterList');
+            const selectedDocumentHeader = document.getElementById('selectedDocumentHeader');
+            const selectedDocumentTitle = document.getElementById('selectedDocumentTitle');
+            const officeDisplay = document.getElementById('officeDisplay');
+            const recordsTableBody = document.getElementById('recordsTableBody');
+            const emptyRecords = document.getElementById('emptyRecords');
+            const modal = document.getElementById('docModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const editDocId = document.getElementById('editDocId');
+            const currentDescription = document.getElementById('currentDescription');
+            const currentDocumentId = document.getElementById('currentDocumentId');
+            const docDate = document.getElementById('docDate');
+            const docFollowup = document.getElementById('docFollowup');
+            const addRecordBtn = document.getElementById('addRecordBtn');
+            const showAllBtn = document.getElementById('showAllBtn');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            const cancelModalBtn = document.getElementById('cancelModalBtn');
+            const saveDocBtn = document.getElementById('saveDocBtn');
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            // ---------- INIT SUPABASE ----------
+            function initSupabase() {
+                try {
+                    return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                } catch (e) {
+                    console.error('Supabase init error:', e);
+                    return null;
+                }
+            }
+
+            // ---------- FETCH DOCUMENTS FROM documents TABLE ----------
+            async function fetchDocuments() {
+                if (!supabaseClient) {
+                    documents = [
+                        { id: 1, description: 'Annual Report', office_id: 1 },
+                        { id: 2, description: 'Invoice', office_id: 2 },
+                        { id: 3, description: 'Contract', office_id: 3 },
+                        { id: 4, description: 'Proposal', office_id: 4 },
+                        { id: 5, description: 'Memo', office_id: 5 },
+                        { id: 6, description: 'Purchase Order', office_id: 6 }
+                    ];
+                    renderDocumentFilters();
+                    return;
+                }
+                try {
+                    // Get distinct documents from the documents table
+                    const { data, error } = await supabaseClient
+                        .from('documents')
+                        .select('id, description, office_id')
+                        .order('description');
+                    if (error) throw error;
+                    
+                    // Get unique documents (by description)
+                    const docMap = new Map();
+                    data.forEach(item => {
+                        if (item.description && !docMap.has(item.description)) {
+                            docMap.set(item.description, {
+                                id: item.id,
+                                description: item.description,
+                                office_id: item.office_id
+                            });
+                        }
+                    });
+                    
+                    documents = Array.from(docMap.values());
+                    if (documents.length === 0) {
+                        documents = [
+                            { id: 1, description: 'Annual Report', office_id: 1 },
+                            { id: 2, description: 'Invoice', office_id: 2 },
+                            { id: 3, description: 'Contract', office_id: 3 },
+                            { id: 4, description: 'Proposal', office_id: 4 },
+                            { id: 5, description: 'Memo', office_id: 5 },
+                            { id: 6, description: 'Purchase Order', office_id: 6 }
+                        ];
+                    }
+                    renderDocumentFilters();
+                } catch (err) {
+                    console.error('fetchDocuments error:', err);
+                    documents = [
+                        { id: 1, description: 'Annual Report', office_id: 1 },
+                        { id: 2, description: 'Invoice', office_id: 2 },
+                        { id: 3, description: 'Contract', office_id: 3 },
+                        { id: 4, description: 'Proposal', office_id: 4 },
+                        { id: 5, description: 'Memo', office_id: 5 },
+                        { id: 6, description: 'Purchase Order', office_id: 6 }
+                    ];
+                    renderDocumentFilters();
+                }
+            }
+
+            function renderDocumentFilters() {
+                let html = '';
+                documents.forEach(doc => {
+                    const isActive = currentSelectedDocumentId === doc.id;
+                    html += `
+                        <button class="document-filter-btn w-full text-left px-3 py-2 rounded-lg transition-colors ${isActive ? 'active-filter' : 'hover:bg-slate-100 text-slate-700'}" data-id="${doc.id}" data-description="${doc.description}" data-office="${doc.office_id || ''}">
+                            <i class="fas fa-file-alt mr-2 ${isActive ? 'text-white' : 'text-slate-400'}"></i>
+                            ${doc.description}
+                        </button>
+                    `;
+                });
+                documentFilterList.innerHTML = html;
+
+                // Attach click events
+                document.querySelectorAll('.document-filter-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = parseInt(this.dataset.id);
+                        const description = this.dataset.description;
+                        const officeId = this.dataset.office;
+                        selectDocument(id, description, officeId);
+                    });
+                });
+            }
+
+            // ---------- SELECT DOCUMENT ----------
+            function selectDocument(docId, description, officeId) {
+                currentSelectedDocumentId = docId;
+                currentSelectedDescription = description;
+                renderDocumentFilters();
+                
+                // Update header
+                selectedDocumentHeader.classList.remove('hidden');
+                selectedDocumentTitle.textContent = description;
+                
+                // Get office name from office_id
+                const officeMap = {
+                    1: 'Finance Department',
+                    2: 'Accounting Office',
+                    3: 'Legal Office',
+                    4: 'Business Development',
+                    5: 'Administrative Office',
+                    6: 'Procurement Office'
+                };
+                officeDisplay.textContent = officeMap[officeId] || officeMap[parseInt(officeId)] || 'General Office';
+                
+                // Fetch monitoring records for this document description
+                fetchMonitoringRecords(description);
+            }
+
+            // ---------- FETCH MONITORING RECORDS ----------
+            async function fetchMonitoringRecords(description) {
+                if (!supabaseClient) {
+                    const allData = getMockMonitoring();
+                    const filtered = allData.filter(d => d.description === description);
+                    monitoringData = filtered;
+                    renderRecords();
+                    return;
+                }
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('monitoring')
+                        .select('*')
+                        .eq('description', description)
+                        .order('date', { ascending: false });
+                    if (error) throw error;
+                    monitoringData = data || [];
+                    renderRecords();
+                } catch (err) {
+                    console.error('fetchMonitoringRecords error:', err);
+                    showToast('Error loading records', 'error');
+                    monitoringData = [];
+                    renderRecords();
+                }
+            }
+
+            // ---------- CRUD OPERATIONS FOR MONITORING ----------
+            async function addMonitoringRecord(record) {
+                if (!supabaseClient) {
+                    const list = getMockMonitoring();
+                    const newId = list.length ? Math.max(...list.map(d => d.id)) + 1 : 1;
+                    const newRecord = { ...record, id: newId };
+                    list.push(newRecord);
+                    saveMockMonitoring(list);
+                    monitoringData = list.filter(d => d.description === record.description);
+                    renderRecords();
+                    showToast('Record added (mock)', 'success');
+                    return;
+                }
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('monitoring')
+                        .insert([record])
+                        .select();
+                    if (error) throw error;
+                    if (data && data.length) {
+                        monitoringData = [data[0], ...monitoringData];
+                        renderRecords();
+                        showToast('Record added successfully', 'success');
+                    }
+                } catch (err) {
+                    console.error('addMonitoringRecord error:', err);
+                    showToast('Failed to add: ' + err.message, 'error');
+                }
+            }
+
+            async function updateMonitoringRecord(id, updates) {
+                if (!supabaseClient) {
+                    const list = getMockMonitoring();
+                    const idx = list.findIndex(d => d.id === id);
+                    if (idx !== -1) {
+                        list[idx] = { ...list[idx], ...updates };
+                        saveMockMonitoring(list);
+                        monitoringData = list.filter(d => d.description === currentSelectedDescription);
+                        renderRecords();
+                        showToast('Updated (mock)', 'success');
+                    }
+                    return;
+                }
+                try {
+                    const { error } = await supabaseClient
+                        .from('monitoring')
+                        .update(updates)
+                        .eq('id', id);
+                    if (error) throw error;
+                    const idx = monitoringData.findIndex(d => d.id === id);
+                    if (idx !== -1) {
+                        monitoringData[idx] = { ...monitoringData[idx], ...updates };
+                        renderRecords();
+                        showToast('Updated successfully', 'success');
+                    } else {
+                        await fetchMonitoringRecords(currentSelectedDescription);
+                    }
+                } catch (err) {
+                    console.error('updateMonitoringRecord error:', err);
+                    showToast('Failed to update: ' + err.message, 'error');
+                }
+            }
+
+            async function deleteMonitoringRecord(id) {
+                if (!confirm('Delete this record?')) return;
+                if (!supabaseClient) {
+                    let list = getMockMonitoring();
+                    list = list.filter(d => d.id !== id);
+                    saveMockMonitoring(list);
+                    monitoringData = list.filter(d => d.description === currentSelectedDescription);
+                    renderRecords();
+                    showToast('Deleted (mock)', 'success');
+                    return;
+                }
+                try {
+                    const { error } = await supabaseClient
+                        .from('monitoring')
+                        .delete()
+                        .eq('id', id);
+                    if (error) throw error;
+                    monitoringData = monitoringData.filter(d => d.id !== id);
+                    renderRecords();
+                    showToast('Deleted successfully', 'success');
+                } catch (err) {
+                    console.error('deleteMonitoringRecord error:', err);
+                    showToast('Failed to delete: ' + err.message, 'error');
+                }
+            }
+
+            // ---------- MOCK DATA FOR MONITORING ----------
+            function getMockMonitoring() {
+                const stored = localStorage.getItem('mock_monitoring');
+                if (stored) {
+                    try { return JSON.parse(stored); } catch (e) {}
+                }
+                const defaultData = [
+                    { id: 1, description: 'Annual Report', date: '2026-08-10', followup: 'Approved by manager' },
+                    { id: 2, description: 'Annual Report', date: '2026-08-11', followup: 'Sent to finance' },
+                    { id: 3, description: 'Invoice', date: '2026-08-10', followup: 'Payment processed' },
+                    { id: 4, description: 'Contract', date: '2026-08-09', followup: 'Under review' },
+                    { id: 5, description: 'Invoice', date: '2026-08-12', followup: 'Awaiting signature' },
+                    { id: 6, description: 'Proposal', date: '2026-08-08', followup: 'Draft prepared' },
+                    { id: 7, description: 'Memo', date: '2026-08-10', followup: 'Distributed to all' },
+                ];
+                localStorage.setItem('mock_monitoring', JSON.stringify(defaultData));
+                return defaultData;
+            }
+
+            function saveMockMonitoring(list) {
+                localStorage.setItem('mock_monitoring', JSON.stringify(list));
+            }
+
+            // ---------- RENDER RECORDS ----------
+            function renderRecords() {
+                const list = monitoringData || [];
+                
+                if (list.length === 0) {
+                    recordsTableBody.innerHTML = '';
+                    emptyRecords.classList.remove('hidden');
+                    return;
+                }
+                emptyRecords.classList.add('hidden');
+
+                let html = '';
+                list.forEach((record, idx) => {
+                    const rowNum = idx + 1;
+                    html += `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${rowNum}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">${record.date || ''}</td>
+                            <td class="px-6 py-4 text-sm text-slate-600">${escapeHtml(record.followup || '')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                <button class="editBtn text-indigo-500 hover:text-indigo-700 mr-3 transition-colors" data-id="${record.id}">
+                                    <i class="fas fa-pen"></i>
+                                </button>
+                                <button class="deleteBtn text-red-400 hover:text-red-600 transition-colors" data-id="${record.id}">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                recordsTableBody.innerHTML = html;
+
+                // Attach events
+                document.querySelectorAll('.editBtn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = parseInt(this.dataset.id);
+                        const record = monitoringData.find(d => d.id === id);
+                        if (record) openModal('edit', record);
+                    });
+                });
+
+                document.querySelectorAll('.deleteBtn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = parseInt(this.dataset.id);
+                        deleteMonitoringRecord(id);
+                    });
+                });
+            }
+
+            function escapeHtml(text) {
+                if (!text) return '';
+                const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+                return text.replace(/[&<>"']/g, m => map[m]);
+            }
+
+            // ---------- MODAL ----------
+            function openModal(mode, record = null) {
+                currentModalMode = mode;
+                if (mode === 'add') {
+                    modalTitle.textContent = 'Add New Record';
+                    editDocId.value = '';
+                    docDate.value = new Date().toISOString().split('T')[0];
+                    docFollowup.value = '';
+                    currentDescription.value = currentSelectedDescription || '';
+                    currentDocumentId.value = currentSelectedDocumentId || '';
+                } else if (record) {
+                    modalTitle.textContent = 'Edit Record';
+                    editDocId.value = record.id;
+                    docDate.value = record.date || '';
+                    docFollowup.value = record.followup || '';
+                    currentDescription.value = record.description || '';
+                    currentDocumentId.value = currentSelectedDocumentId || '';
+                }
+                modal.classList.remove('hidden');
+                docDate.focus();
+            }
+
+            function closeModal() {
+                modal.classList.add('hidden');
+                editDocId.value = '';
+                docDate.value = '';
+                docFollowup.value = '';
+                currentDescription.value = '';
+                currentDocumentId.value = '';
+            }
+
+            // ---------- FORM SUBMIT ----------
+            async function handleSave(e) {
+                e.preventDefault();
+                const date = docDate.value;
+                const followup = docFollowup.value.trim();
+                const description = currentDescription.value || currentSelectedDescription;
+
+                if (!date || !followup) {
+                    alert('Please fill all fields (Date and Follow-up Respond)');
+                    return;
+                }
+
+                if (!description) {
+                    alert('No document selected. Please select a document first.');
+                    return;
+                }
+
+                const payload = { description, date, followup };
+
+                const id = editDocId.value;
+                if (id) {
+                    await updateMonitoringRecord(parseInt(id), payload);
+                } else {
+                    await addMonitoringRecord(payload);
+                }
+                closeModal();
+                if (currentSelectedDescription) {
+                    await fetchMonitoringRecords(currentSelectedDescription);
+                }
+            }
+
+            // ---------- TOAST ----------
+            let toastTimeout = null;
+
+            function showToast(msg, type = 'success') {
+                toastMessage.textContent = msg;
+                toastIcon.className = type === 'success' ? 'fas fa-check-circle text-green-400' :
+                    'fas fa-exclamation-circle text-red-400';
+                toast.classList.remove('translate-y-20', 'opacity-0');
+                toast.classList.add('translate-y-0', 'opacity-100');
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => {
+                    toast.classList.remove('translate-y-0', 'opacity-100');
+                    toast.classList.add('translate-y-20', 'opacity-0');
+                }, 3000);
+            }
+
+            // ---------- EVENTS ----------
+            function bindEvents() {
+                // Show All button
+                showAllBtn.addEventListener('click', function() {
+                    currentSelectedDocumentId = null;
+                    currentSelectedDescription = null;
+                    selectedDocumentHeader.classList.add('hidden');
+                    monitoringData = [];
+                    renderRecords();
+                    renderDocumentFilters();
+                });
+
+                // Add record button
+                addRecordBtn.addEventListener('click', function() {
+                    if (!currentSelectedDocumentId) {
+                        alert('Please select a document first.');
+                        return;
+                    }
+                    openModal('add');
+                });
+
+                // Modal events
+                closeModalBtn.addEventListener('click', closeModal);
+                cancelModalBtn.addEventListener('click', closeModal);
+                modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+                saveDocBtn.addEventListener('click', handleSave);
+
+                // Keyboard shortcuts
+                docDate.addEventListener('keydown', e => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        docFollowup.focus();
+                    }
+                });
+
+                docFollowup.addEventListener('keydown', e => {
+                    if (e.key === 'Enter' && e.ctrlKey) {
+                        e.preventDefault();
+                        handleSave(e);
+                    }
+                });
+
+                document.addEventListener('keydown', e => {
+                    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                        closeModal();
+                    }
+                });
+            }
+
+            // ---------- INIT ----------
+            async function init() {
+                supabaseClient = initSupabase();
+                await fetchDocuments();
+                
+                // Auto-select first document if available
+                if (documents.length > 0) {
+                    selectDocument(documents[0].id, documents[0].description, documents[0].office_id);
+                }
+                
+                bindEvents();
+                console.log('✅ Monitoring Document ready');
+            }
+
+            init();
+        })();
+    </script>
+</body>
+</html>

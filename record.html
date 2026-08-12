@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Document Receive</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .modal-transition { transition: opacity 0.2s ease, transform 0.2s ease; }
+    .toast { transition: all 0.3s ease; }
+    .signature-box { border: 2px dashed #94a3b8; background: #f8fafc; min-height: 80px; }
+  </style>
+</head>
+<body class="bg-slate-50 font-sans antialiased">
+
+  <div class="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+
+    <!-- header -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <div>
+        <h1 class="text-3xl font-bold text-slate-800 flex items-center gap-2">
+          <i class="fas fa-file-alt text-indigo-500"></i> Manage Document Receive
+        </h1>
+        <p class="text-sm text-slate-500 mt-1">Supabase connected · full CRUD with signature</p>
+      </div>
+      <button id="openAddModalBtn" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-md transition-colors">
+        <i class="fas fa-plus-circle"></i> Add new record
+      </button>
+    </div>
+
+    <!-- sub paragraphs -->
+    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-8 text-slate-700 text-sm leading-relaxed">
+      <p class="mb-2">
+        <i class="fas fa-database text-indigo-400 mr-2"></i>
+        <strong>Document receive management.</strong> This dashboard connects to your <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">documents</code> table.
+        All operations (create, read, update, delete) are persisted in real‑time.
+      </p>
+      <p>
+        <i class="fas fa-arrow-right text-indigo-400 mr-2"></i>
+        Use the <span class="font-medium">"Add new record"</span> button. Each row provides
+        <span class="font-medium">View</span> (eye), <span class="font-medium">Edit</span> (pencil) and <span class="font-medium">Delete</span> (trash) actions.
+        Click the signature box to sign (system will record "Received by [office]").
+      </p>
+    </div>
+
+    <!-- documents table -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead class="bg-slate-50">
+            <tr>
+              <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+              <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Office / Time</th>
+              <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
+              <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Received</th>
+              <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
+            </tr>
+          </thead>
+          <tbody id="docTableBody" class="bg-white divide-y divide-slate-100">
+            <!-- rows injected -->
+          </tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="text-center py-12 text-slate-400 hidden">
+        <i class="fas fa-inbox text-4xl mb-3 block"></i>
+        <p class="text-sm">No records found. Click "Add new record" to create one.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL (add / edit) ========== -->
+  <div id="docModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 hidden modal-transition">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="modalTitle" class="text-xl font-semibold text-slate-800">New Record</h3>
+        <button id="closeModalBtn" class="text-slate-400 hover:text-slate-600 transition-colors">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+      <form id="docForm" class="space-y-4">
+        <input type="hidden" id="editDocId" value="">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Date</label>
+            <input type="date" id="docDate" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Office</label>
+            <select id="docOffice" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none">
+              <option value="">Select office</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Time</label>
+            <input type="time" id="docTime" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none">
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-700 mb-1">Description</label>
+            <textarea id="docDescription" rows="2" placeholder="Document description..." class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none"></textarea>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-700 mb-1">Received Signature</label>
+            <div class="signature-box rounded-lg p-3 flex items-center gap-3">
+              <i class="fas fa-pen text-slate-400"></i>
+              <span id="signatureDisplay" class="text-slate-500 text-sm">Click to sign (will be recorded)</span>
+              <input type="hidden" id="docReceived" value="">
+            </div>
+            <button type="button" id="signBtn" class="mt-1 text-xs text-indigo-600 hover:text-indigo-800">✍️ Sign as current office</button>
+          </div>
+        </div>
+        
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+          <button type="button" id="cancelModalBtn" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+          <button type="submit" id="saveDocBtn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors">
+            <i class="fas fa-save mr-1"></i> Save & close
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========== VIEW MODAL ========== -->
+  <div id="viewModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 hidden modal-transition">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold text-slate-800">Document Details</h3>
+        <button id="closeViewBtn" class="text-slate-400 hover:text-slate-600 transition-colors">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+      <div id="viewContent" class="space-y-3 text-sm">
+        <!-- filled by js -->
+      </div>
+      <div class="flex justify-end mt-4">
+        <button id="closeViewBtn2" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg transition-colors">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== TOAST ========== -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 translate-y-20 opacity-0 transition-all duration-300 z-50">
+    <i id="toastIcon" class="fas fa-check-circle text-green-400"></i>
+    <span id="toastMessage">Saved</span>
+  </div>
+  <!-- Installation Script -->
+  <script src="installer.js"></script>
+  <script>
+    (function() {
+      // ---------- SUPABASE CONFIG ----------
+      const SUPABASE_URL = 'https://optezkkqvrordihanvcw.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wdGV6a2txdnJvcmRpaGFudmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0OTE3ODYsImV4cCI6MjEwMjA2Nzc4Nn0.3PK7GuMHmfRDf63y4sGyOixk6DX3AS4KV3fGvNJiS0M';
+
+      // ---------- GLOBALS ----------
+      let supabaseClient = null;
+      let documents = [];
+      let offices = [];
+      let currentModalMode = 'add';
+      let currentUser = 'User_' + Math.floor(Math.random() * 1000);
+
+      // DOM refs
+      const tableBody = document.getElementById('docTableBody');
+      const emptyState = document.getElementById('emptyState');
+      const modal = document.getElementById('docModal');
+      const viewModal = document.getElementById('viewModal');
+      const modalTitle = document.getElementById('modalTitle');
+      const editDocId = document.getElementById('editDocId');
+      const docDate = document.getElementById('docDate');
+      const docOffice = document.getElementById('docOffice');
+      const docTime = document.getElementById('docTime');
+      const docDescription = document.getElementById('docDescription');
+      const docReceived = document.getElementById('docReceived');
+      const signatureDisplay = document.getElementById('signatureDisplay');
+      const openAddBtn = document.getElementById('openAddModalBtn');
+      const closeModalBtn = document.getElementById('closeModalBtn');
+      const cancelModalBtn = document.getElementById('cancelModalBtn');
+      const saveDocBtn = document.getElementById('saveDocBtn');
+      const closeViewBtn = document.getElementById('closeViewBtn');
+      const closeViewBtn2 = document.getElementById('closeViewBtn2');
+      const signBtn = document.getElementById('signBtn');
+      const toast = document.getElementById('toast');
+      const toastMessage = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+      const viewContent = document.getElementById('viewContent');
+
+      // ---------- INIT SUPABASE ----------
+      function initSupabase() {
+        try {
+          return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } catch (e) {
+          console.error('Supabase init error:', e);
+          return null;
+        }
+      }
+
+      // ---------- FETCH OFFICES ----------
+      async function fetchOffices() {
+        if (!supabaseClient) return;
+        try {
+          const { data, error } = await supabaseClient
+            .from('offices')
+            .select('id, name')
+            .order('name');
+          if (error) throw error;
+          offices = data || [];
+          populateOfficeSelect();
+        } catch (err) {
+          console.error('fetchOffices error:', err);
+          offices = [{ id: 1, name: 'Headquarters' }, { id: 2, name: 'Branch North' }];
+          populateOfficeSelect();
+        }
+      }
+
+      function populateOfficeSelect() {
+        docOffice.innerHTML = '<option value="">Select office</option>';
+        offices.forEach(office => {
+          const opt = document.createElement('option');
+          opt.value = office.id;
+          opt.textContent = office.name;
+          docOffice.appendChild(opt);
+        });
+      }
+
+      // ---------- CRUD ----------
+      async function fetchDocuments() {
+        if (!supabaseClient) {
+          documents = getMockDocs();
+          renderTable();
+          return;
+        }
+        try {
+          const { data, error } = await supabaseClient
+            .from('documents')
+            .select('*, offices(id, name)')
+            .order('date', { ascending: false });
+          if (error) throw error;
+          documents = data || [];
+          renderTable();
+        } catch (err) {
+          console.error('fetchDocuments error:', err);
+          showToast('Error loading documents', 'error');
+          documents = [];
+          renderTable();
+        }
+      }
+
+      async function addDocument(doc) {
+        if (!supabaseClient) {
+          const list = getMockDocs();
+          const newId = list.length ? Math.max(...list.map(d => d.id)) + 1 : 1;
+          const newDoc = { ...doc, id: newId };
+          list.push(newDoc);
+          saveMockDocs(list);
+          documents = list;
+          renderTable();
+          showToast('Record added (mock)', 'success');
+          return;
+        }
+        try {
+          const { data, error } = await supabaseClient
+            .from('documents')
+            .insert([doc])
+            .select('*, offices(id, name)');
+          if (error) throw error;
+          if (data && data.length) {
+            documents = [data[0], ...documents];
+            renderTable();
+            showToast('Record added successfully', 'success');
+          }
+        } catch (err) {
+          console.error('addDocument error:', err);
+          showToast('Failed to add: ' + err.message, 'error');
+        }
+      }
+
+      async function updateDocument(id, updates) {
+        if (!supabaseClient) {
+          const list = getMockDocs();
+          const idx = list.findIndex(d => d.id === id);
+          if (idx !== -1) {
+            list[idx] = { ...list[idx], ...updates };
+            saveMockDocs(list);
+            documents = list;
+            renderTable();
+            showToast('Updated (mock)', 'success');
+          }
+          return;
+        }
+        try {
+          const { error } = await supabaseClient
+            .from('documents')
+            .update(updates)
+            .eq('id', id);
+          if (error) throw error;
+          const idx = documents.findIndex(d => d.id === id);
+          if (idx !== -1) {
+            documents[idx] = { ...documents[idx], ...updates };
+            renderTable();
+            showToast('Updated successfully', 'success');
+          } else {
+            await fetchDocuments();
+          }
+        } catch (err) {
+          console.error('updateDocument error:', err);
+          showToast('Failed to update: ' + err.message, 'error');
+        }
+      }
+
+      async function deleteDocument(id) {
+        if (!confirm('Delete this record?')) return;
+        if (!supabaseClient) {
+          let list = getMockDocs();
+          list = list.filter(d => d.id !== id);
+          saveMockDocs(list);
+          documents = list;
+          renderTable();
+          showToast('Deleted (mock)', 'success');
+          return;
+        }
+        try {
+          const { error } = await supabaseClient
+            .from('documents')
+            .delete()
+            .eq('id', id);
+          if (error) throw error;
+          documents = documents.filter(d => d.id !== id);
+          renderTable();
+          showToast('Deleted successfully', 'success');
+        } catch (err) {
+          console.error('deleteDocument error:', err);
+          showToast('Failed to delete: ' + err.message, 'error');
+        }
+      }
+
+      // ---------- MOCK ----------
+      function getMockDocs() {
+        const stored = localStorage.getItem('mock_docs');
+        if (stored) {
+          try { return JSON.parse(stored); } catch(e) {}
+        }
+        const defaultDocs = [
+          { id: 1, date: '2026-08-01', office_id: 1, time: '09:30', description: 'Annual report', received: 'Received by Headquarters' },
+          { id: 2, date: '2026-08-02', office_id: 2, time: '14:00', description: 'Invoice #1234', received: '' },
+        ];
+        localStorage.setItem('mock_docs', JSON.stringify(defaultDocs));
+        return defaultDocs;
+      }
+      function saveMockDocs(list) {
+        localStorage.setItem('mock_docs', JSON.stringify(list));
+      }
+
+      // ---------- RENDER TABLE ----------
+      function renderTable() {
+        const list = documents || [];
+        if (list.length === 0) {
+          tableBody.innerHTML = '';
+          emptyState.classList.remove('hidden');
+          return;
+        }
+        emptyState.classList.add('hidden');
+
+        let html = '';
+        list.forEach((doc, idx) => {
+          const officeName = doc.offices?.name || doc.office_name || 'N/A';
+          const officeTime = `${officeName} ${doc.time || ''}`;
+          const received = doc.received || '';
+          const isSigned = received && received.length > 0;
+          html += `
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">${doc.date || ''}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-slate-600">${officeTime}</td>
+              <td class="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">${escapeHtml(doc.description || '')}</td>
+              <td class="px-4 py-3 text-center">
+                <button class="signDocBtn w-8 h-8 rounded-full border-2 ${isSigned ? 'border-green-500 bg-green-50 text-green-600' : 'border-slate-300 hover:border-indigo-400'} transition-colors flex items-center justify-center mx-auto" data-id="${doc.id}" data-received="${escapeHtml(received)}">
+                  <i class="fas fa-${isSigned ? 'check' : 'pen'} text-xs"></i>
+                </button>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-right text-sm">
+                <button class="viewBtn text-blue-500 hover:text-blue-700 mr-2 transition-colors" data-id="${doc.id}">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <button class="editBtn text-indigo-500 hover:text-indigo-700 mr-2 transition-colors" data-id="${doc.id}">
+                  <i class="fas fa-pen"></i>
+                </button>
+                <button class="deleteBtn text-red-400 hover:text-red-600 transition-colors" data-id="${doc.id}">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+        tableBody.innerHTML = html;
+
+        // Events
+        document.querySelectorAll('.viewBtn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            const doc = documents.find(d => d.id === id);
+            if (doc) viewDocument(doc);
+          });
+        });
+
+        document.querySelectorAll('.editBtn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            const doc = documents.find(d => d.id === id);
+            if (doc) openModal('edit', doc);
+          });
+        });
+
+        document.querySelectorAll('.deleteBtn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            deleteDocument(id);
+          });
+        });
+
+        document.querySelectorAll('.signDocBtn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            const doc = documents.find(d => d.id === id);
+            if (doc) {
+              const currentSig = doc.received || '';
+              let officeName = doc.offices?.name || doc.office_name || 'Office';
+              
+              if (currentSig) {
+                // If already signed, remove signature
+                updateDocument(id, { received: '' });
+              } else {
+                // Create signature with just the office name
+                const sig = `Received by ${officeName}`;
+                updateDocument(id, { received: sig });
+              }
+            }
+          });
+        });
+      }
+
+      function escapeHtml(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.replace(/[&<>"']/g, m => map[m]);
+      }
+
+      // ---------- VIEW ----------
+      function viewDocument(doc) {
+        const officeName = doc.offices?.name || doc.office_name || 'N/A';
+        const officeTime = `${officeName} ${doc.time || ''}`;
+        viewContent.innerHTML = `
+          <div class="grid grid-cols-2 gap-3 p-2">
+            <div><strong>Date:</strong> ${doc.date || ''}</div>
+            <div class="col-span-2"><strong>Office / Time:</strong> ${officeTime}</div>
+            <div class="col-span-2"><strong>Description:</strong> ${escapeHtml(doc.description || '')}</div>
+            <div class="col-span-2"><strong>Received:</strong> ${doc.received || 'Not signed'}</div>
+          </div>
+        `;
+        viewModal.classList.remove('hidden');
+      }
+
+      // ---------- MODAL ----------
+      function openModal(mode, doc = null) {
+        currentModalMode = mode;
+        if (mode === 'add') {
+          modalTitle.textContent = 'New Record';
+          editDocId.value = '';
+          docDate.value = new Date().toISOString().split('T')[0];
+          docTime.value = new Date().toTimeString().slice(0, 5);
+          docDescription.value = '';
+          docReceived.value = '';
+          signatureDisplay.textContent = 'Click to sign (will be recorded)';
+          docOffice.value = '';
+        } else if (doc) {
+          modalTitle.textContent = 'Edit Record';
+          editDocId.value = doc.id;
+          docDate.value = doc.date || '';
+          docTime.value = doc.time || '';
+          docDescription.value = doc.description || '';
+          docReceived.value = doc.received || '';
+          signatureDisplay.textContent = doc.received || 'Not signed';
+          docOffice.value = doc.office_id || '';
+        }
+        modal.classList.remove('hidden');
+      }
+
+      function closeModal() {
+        modal.classList.add('hidden');
+      }
+
+      // ---------- SIGNATURE ----------
+      function handleSign() {
+        // Get office name from form
+        const officeId = parseInt(docOffice.value);
+        const officeName = offices.find(o => o.id === officeId)?.name || 'Office';
+        
+        if (!officeId) {
+          alert('Please select an office first');
+          return;
+        }
+        
+        const sig = `Received by ${officeName}`;
+        docReceived.value = sig;
+        signatureDisplay.textContent = sig;
+        showToast('Signature added', 'success');
+      }
+
+      // ---------- FORM SUBMIT ----------
+      async function handleSave(e) {
+        e.preventDefault();
+        const date = docDate.value;
+        const office_id = parseInt(docOffice.value);
+        const time = docTime.value;
+        const description = docDescription.value.trim();
+        const received = docReceived.value;
+
+        if (!date || !office_id || !time || !description) {
+          alert('Please fill all fields (Date, Office, Time, Description)');
+          return;
+        }
+
+        const payload = { date, office_id, time, description, received };
+
+        const id = editDocId.value;
+        if (id) {
+          await updateDocument(parseInt(id), payload);
+        } else {
+          await addDocument(payload);
+        }
+        closeModal();
+        await fetchDocuments();
+      }
+
+      // ---------- TOAST ----------
+      let toastTimeout = null;
+      function showToast(msg, type = 'success') {
+        toastMessage.textContent = msg;
+        toastIcon.className = type === 'success' ? 'fas fa-check-circle text-green-400' : 'fas fa-exclamation-circle text-red-400';
+        toast.classList.remove('translate-y-20', 'opacity-0');
+        toast.classList.add('translate-y-0', 'opacity-100');
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+          toast.classList.remove('translate-y-0', 'opacity-100');
+          toast.classList.add('translate-y-20', 'opacity-0');
+        }, 3000);
+      }
+
+      // ---------- EVENTS ----------
+      function bindEvents() {
+        openAddBtn.addEventListener('click', () => openModal('add'));
+        closeModalBtn.addEventListener('click', closeModal);
+        cancelModalBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+        saveDocBtn.addEventListener('click', handleSave);
+        signBtn.addEventListener('click', handleSign);
+        closeViewBtn.addEventListener('click', () => viewModal.classList.add('hidden'));
+        closeViewBtn2.addEventListener('click', () => viewModal.classList.add('hidden'));
+        viewModal.addEventListener('click', e => { if (e.target === viewModal) viewModal.classList.add('hidden'); });
+      }
+
+      // ---------- INIT ----------
+      async function init() {
+        supabaseClient = initSupabase();
+        await fetchOffices();
+        await fetchDocuments();
+        bindEvents();
+        console.log('✅ Document receive manager ready');
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>

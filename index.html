@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Liaison - Monitoring & Record</title>
+    <!-- Tailwind via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .toast { transition: all 0.3s ease; }
+        .card-hover {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- ========== MAIN WRAPPER ========== -->
+    <div class="flex-1">
+
+        <!-- ========== HEADER ========== -->
+        <header class="gradient-bg text-white py-12 px-4 shadow-lg">
+            <div class="max-w-6xl mx-auto text-center">
+                <h1 class="text-4xl md:text-5xl font-bold mb-2 tracking-tight">
+                    <i class="fas fa-handshake mr-3"></i>Liaison
+                </h1>
+                <p class="text-xl md:text-2xl font-light text-indigo-100">
+                    Monitoring &amp; Record
+                </p>
+                <div class="mt-3 text-sm text-indigo-200 border-t border-indigo-300/30 pt-3 inline-block px-6">
+                    <i class="fas fa-building mr-2"></i>
+                    Bohol Employment Placement Office - Public Employment Service Office
+                </div>
+            </div>
+        </header>
+
+        <!-- ========== STATS CARDS ========== -->
+        <section class="max-w-6xl mx-auto px-4 -mt-6 relative z-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Total Records Card -->
+                <div class="stats-card rounded-2xl shadow-lg p-6 card-hover border border-indigo-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Records</p>
+                            <p id="totalRecordsCount" class="text-3xl font-bold text-indigo-600 mt-1">0</p>
+                        </div>
+                        <div class="w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center">
+                            <i class="fas fa-file-alt text-2xl text-indigo-600"></i>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-xs text-slate-400">
+                        <i class="fas fa-database mr-1"></i> From documents table
+                    </div>
+                </div>
+
+                <!-- Total Monitoring Card -->
+                <div class="stats-card rounded-2xl shadow-lg p-6 card-hover border border-emerald-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Monitoring</p>
+                            <p id="totalMonitoringCount" class="text-3xl font-bold text-emerald-600 mt-1">0</p>
+                        </div>
+                        <div class="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center">
+                            <i class="fas fa-clipboard-list text-2xl text-emerald-600"></i>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-xs text-slate-400">
+                        <i class="fas fa-database mr-1"></i> From monitoring table
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== PORTAL SECTION ========== -->
+        <section class="max-w-6xl mx-auto px-4 py-10">
+            <h2 class="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
+                <i class="fas fa-th-large text-indigo-500"></i>
+                Portal
+                <span class="text-sm font-normal text-slate-400 ml-2">— Quick Access</span>
+            </h2>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                <!-- Record Card -->
+                <a href="record.html" class="group bg-white rounded-2xl shadow-md p-6 text-center card-hover border border-slate-200 hover:border-indigo-300 transition-colors">
+                    <div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-indigo-100 transition-colors">
+                        <i class="fas fa-file-alt text-2xl text-indigo-500 group-hover:text-indigo-600"></i>
+                    </div>
+                    <h3 class="font-semibold text-slate-700 group-hover:text-indigo-600 transition-colors">Record</h3>
+                    <p class="text-xs text-slate-400 mt-1">Manage documents</p>
+                </a>
+
+                <!-- Monitoring Card -->
+                <a href="monitoring.html" class="group bg-white rounded-2xl shadow-md p-6 text-center card-hover border border-slate-200 hover:border-emerald-300 transition-colors">
+                    <div class="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-emerald-100 transition-colors">
+                        <i class="fas fa-clipboard-list text-2xl text-emerald-500 group-hover:text-emerald-600"></i>
+                    </div>
+                    <h3 class="font-semibold text-slate-700 group-hover:text-emerald-600 transition-colors">Monitoring</h3>
+                    <p class="text-xs text-slate-400 mt-1">Daily tracking</p>
+                </a>
+
+                <!-- Office Card -->
+                <a href="office.html" class="group bg-white rounded-2xl shadow-md p-6 text-center card-hover border border-slate-200 hover:border-purple-300 transition-colors">
+                    <div class="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-purple-100 transition-colors">
+                        <i class="fas fa-building text-2xl text-purple-500 group-hover:text-purple-600"></i>
+                    </div>
+                    <h3 class="font-semibold text-slate-700 group-hover:text-purple-600 transition-colors">Office</h3>
+                    <p class="text-xs text-slate-400 mt-1">Manage offices</p>
+                </a>
+
+                <!-- Report Card -->
+                <a href="report.html" class="group bg-white rounded-2xl shadow-md p-6 text-center card-hover border border-slate-200 hover:border-orange-300 transition-colors">
+                    <div class="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-orange-100 transition-colors">
+                        <i class="fas fa-file-pdf text-2xl text-orange-500 group-hover:text-orange-600"></i>
+                    </div>
+                    <h3 class="font-semibold text-slate-700 group-hover:text-orange-600 transition-colors">Report</h3>
+                    <p class="text-xs text-slate-400 mt-1">Generate reports</p>
+                </a>
+            </div>
+        </section>
+
+        <!-- ========== SPACER ========== -->
+        <div class="flex-1"></div>
+
+        <!-- ========== FOOTER ========== -->
+        <footer class="bg-white border-t border-slate-200 py-4 px-4 mt-8">
+            <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-slate-500">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-handshake text-indigo-500"></i>
+                    <span>Liaison (Monitoring, Record)</span>
+                </div>
+                <div class="flex items-center gap-4 flex-wrap justify-center">
+                    <span id="currentDateTime" class="text-slate-400">
+                        <i class="far fa-clock mr-1"></i>
+                        Loading time...
+                    </span>
+                    <span class="text-slate-300">|</span>
+                    <span>© 2026 BEPO-PESO. All rights reserved.</span>
+                    <span class="text-slate-300">|</span>
+                    <a href="login.html" class="text-red-400 hover:text-red-600 transition-colors flex items-center gap-1">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Logout
+                    </a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ========== TOAST ========== -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i id="toastIcon" class="fas fa-check-circle text-green-400"></i>
+        <span id="toastMessage">Loaded</span>
+    </div>
+    <!-- Installation Script -->
+    <script src="installer.js"></script>
+    <script>
+        (function() {
+            // ---------- SUPABASE CONFIG ----------
+            const SUPABASE_URL = 'https://optezkkqvrordihanvcw.supabase.co';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wdGV6a2txdnJvcmRpaGFudmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0OTE3ODYsImV4cCI6MjEwMjA2Nzc4Nn0.3PK7GuMHmfRDf63y4sGyOixk6DX3AS4KV3fGvNJiS0M';
+
+            // ---------- GLOBALS ----------
+            let supabaseClient = null;
+
+            // DOM refs
+            const totalRecordsCount = document.getElementById('totalRecordsCount');
+            const totalMonitoringCount = document.getElementById('totalMonitoringCount');
+            const currentDateTime = document.getElementById('currentDateTime');
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            // ---------- INIT SUPABASE ----------
+            function initSupabase() {
+                try {
+                    return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                } catch (e) {
+                    console.error('Supabase init error:', e);
+                    return null;
+                }
+            }
+
+            // ---------- FETCH COUNTS ----------
+            async function fetchCounts() {
+                if (!supabaseClient) {
+                    showToast('Supabase not connected', 'error');
+                    return;
+                }
+
+                try {
+                    // Fetch total records from documents table
+                    const { count: docCount, error: docError } = await supabaseClient
+                        .from('documents')
+                        .select('*', { count: 'exact', head: true });
+                    
+                    if (docError) throw docError;
+                    totalRecordsCount.textContent = docCount || 0;
+
+                    // Fetch total monitoring records
+                    const { count: monCount, error: monError } = await supabaseClient
+                        .from('monitoring')
+                        .select('*', { count: 'exact', head: true });
+                    
+                    if (monError) throw monError;
+                    totalMonitoringCount.textContent = monCount || 0;
+
+                    showToast('Dashboard loaded successfully', 'success');
+                } catch (err) {
+                    console.error('fetchCounts error:', err);
+                    showToast('Error loading counts: ' + err.message, 'error');
+                    totalRecordsCount.textContent = '0';
+                    totalMonitoringCount.textContent = '0';
+                }
+            }
+
+            // ---------- UPDATE DATE/TIME ----------
+            function updateDateTime() {
+                const now = new Date();
+                const options = { 
+                    weekday: 'short', 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true
+                };
+                currentDateTime.innerHTML = `<i class="far fa-clock mr-1"></i> ${now.toLocaleDateString('en-US', options)}`;
+            }
+
+            // ---------- TOAST ----------
+            let toastTimeout = null;
+
+            function showToast(msg, type = 'success') {
+                toastMessage.textContent = msg;
+                toastIcon.className = type === 'success' ? 'fas fa-check-circle text-green-400' :
+                    type === 'warning' ? 'fas fa-exclamation-triangle text-yellow-400' :
+                    'fas fa-exclamation-circle text-red-400';
+                toast.classList.remove('translate-y-20', 'opacity-0');
+                toast.classList.add('translate-y-0', 'opacity-100');
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => {
+                    toast.classList.remove('translate-y-0', 'opacity-100');
+                    toast.classList.add('translate-y-20', 'opacity-0');
+                }, 3000);
+            }
+
+            // ---------- INIT ----------
+            async function init() {
+                supabaseClient = initSupabase();
+                
+                // Update time immediately and every second
+                updateDateTime();
+                setInterval(updateDateTime, 1000);
+                
+                if (supabaseClient) {
+                    await fetchCounts();
+                } else {
+                    showToast('Failed to connect to Supabase', 'error');
+                    totalRecordsCount.textContent = '--';
+                    totalMonitoringCount.textContent = '--';
+                }
+                
+                console.log('✅ Liaison Dashboard ready');
+            }
+
+            // Run init when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+        })();
+    </script>
+</body>
+</html>

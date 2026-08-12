@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generate Monitoring Report</title>
+    <!-- Tailwind via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .toast { transition: all 0.3s ease; }
+        .active-filter { background: #6366f1; color: white; }
+        .active-filter:hover { background: #4f46e5; }
+        .report-header { border-bottom: 2px solid #e2e8f0; }
+        /* Print styles for better report generation */
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            .max-w-7xl { max-width: 100% !important; padding: 20px !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans antialiased">
+
+    <div class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+
+        <!-- header -->
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-8 no-print">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-file-alt text-indigo-500"></i> Generate Monitoring Report
+                </h1>
+                <p class="text-sm text-slate-500 mt-1">Supabase connected · generate comprehensive monitoring reports</p>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+                <button id="generateReportBtn" class="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-md transition-colors">
+                    <i class="fas fa-file-word"></i> Generate Word Report
+                </button>
+                <button id="printReportBtn" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-md transition-colors">
+                    <i class="fas fa-print"></i> Print Report
+                </button>
+            </div>
+        </div>
+
+        <!-- sub paragraphs -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-8 text-slate-700 text-sm leading-relaxed no-print">
+            <p class="mb-2">
+                <i class="fas fa-chart-bar text-indigo-400 mr-2"></i>
+                <strong>Report generation.</strong> This dashboard generates monitoring reports based on your actual database records.
+                Select a description to view the records and generate a Word document report.
+            </p>
+            <p>
+                <i class="fas fa-arrow-right text-indigo-400 mr-2"></i>
+                Choose a <span class="font-medium">description</span> from the filter to see the total records and individual entries.
+                Click the <span class="font-medium">"Generate Word Report"</span> button to download a formatted report using the Python script.
+            </p>
+        </div>
+
+        <!-- Main content: filter + details -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- LEFT: Description Filter -->
+            <div class="lg:col-span-1 no-print">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sticky top-4">
+                    <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                        <i class="fas fa-filter text-indigo-500"></i> Filter by Description
+                    </h3>
+                    <div id="descriptionFilterList" class="space-y-1 max-h-[70vh] overflow-y-auto">
+                        <!-- descriptions will be injected here -->
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-slate-200">
+                        <button id="showAllBtn" class="w-full px-3 py-2 text-sm bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors text-slate-700">
+                            <i class="fas fa-list mr-1"></i> Show All
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Report Details -->
+            <div class="lg:col-span-3">
+                <!-- Selected Description Header -->
+                <div id="selectedDescriptionHeader" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4 hidden">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                            <h2 id="selectedDescriptionTitle" class="text-xl font-bold text-slate-800">Select a description</h2>
+                            <p id="selectedDescriptionOffice" class="text-sm text-slate-500 mt-1">Office: <span id="officeDisplay">N/A</span></p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm text-slate-600">Total Records: <span id="totalRecords" class="font-bold text-indigo-600">0</span></p>
+                            <p class="text-sm text-slate-600">Monitoring Days: <span id="totalDays" class="font-bold text-indigo-600">0</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Records Table -->
+                <div id="recordsContainer" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div id="reportContent">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-slate-200" id="reportTable">
+                                <thead class="bg-slate-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">#</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Follow-up Respond</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recordsTableBody" class="bg-white divide-y divide-slate-100">
+                                    <!-- rows injected -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="emptyRecords" class="text-center py-12 text-slate-400 hidden">
+                            <i class="fas fa-inbox text-4xl mb-3 block"></i>
+                            <p class="text-sm">No records found for this description.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== TOAST ========== -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i id="toastIcon" class="fas fa-check-circle text-green-400"></i>
+        <span id="toastMessage">Saved</span>
+    </div>
+
+    <!-- Installation Script -->
+    <script src="installer.js"></script>
+    <script>
+        (function() {
+            // ---------- SUPABASE CONFIG ----------
+            const SUPABASE_URL = 'https://optezkkqvrordihanvcw.supabase.co';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wdGV6a2txdnJvcmRpaGFudmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0OTE3ODYsImV4cCI6MjEwMjA2Nzc4Nn0.3PK7GuMHmfRDf63y4sGyOixk6DX3AS4KV3fGvNJiS0M';
+
+            // ---------- GLOBALS ----------
+            let supabaseClient = null;
+            let documents = [];
+            let monitoringData = [];
+            let currentSelectedDocumentId = null;
+            let currentSelectedDescription = null;
+            let currentOfficeName = 'N/A';
+
+            // DOM refs
+            const descriptionFilterList = document.getElementById('descriptionFilterList');
+            const selectedDescriptionHeader = document.getElementById('selectedDescriptionHeader');
+            const selectedDescriptionTitle = document.getElementById('selectedDescriptionTitle');
+            const officeDisplay = document.getElementById('officeDisplay');
+            const totalRecords = document.getElementById('totalRecords');
+            const totalDays = document.getElementById('totalDays');
+            const recordsTableBody = document.getElementById('recordsTableBody');
+            const emptyRecords = document.getElementById('emptyRecords');
+            const showAllBtn = document.getElementById('showAllBtn');
+            const generateReportBtn = document.getElementById('generateReportBtn');
+            const printReportBtn = document.getElementById('printReportBtn');
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            // ---------- INIT SUPABASE ----------
+            function initSupabase() {
+                try {
+                    return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                } catch (e) {
+                    console.error('Supabase init error:', e);
+                    return null;
+                }
+            }
+
+            // ---------- FETCH OFFICES ----------
+            async function fetchOfficeName(officeId) {
+                if (!supabaseClient || !officeId) return 'N/A';
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('offices')
+                        .select('name')
+                        .eq('id', officeId)
+                        .single();
+                    if (error) throw error;
+                    return data?.name || 'N/A';
+                } catch (err) {
+                    console.error('fetchOfficeName error:', err);
+                    return 'N/A';
+                }
+            }
+
+            // ---------- FETCH DOCUMENTS ----------
+            async function fetchDocuments() {
+                if (!supabaseClient) {
+                    showToast('Supabase not connected', 'error');
+                    return;
+                }
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('documents')
+                        .select('id, description, office_id')
+                        .order('description');
+                    if (error) throw error;
+                    
+                    const docMap = new Map();
+                    data.forEach(item => {
+                        if (item.description && !docMap.has(item.description)) {
+                            docMap.set(item.description, {
+                                id: item.id,
+                                description: item.description,
+                                office_id: item.office_id
+                            });
+                        }
+                    });
+                    
+                    documents = Array.from(docMap.values());
+                    
+                    if (documents.length === 0) {
+                        showToast('No documents found in the database', 'warning');
+                        renderDescriptionFilters();
+                        return;
+                    }
+                    
+                    renderDescriptionFilters();
+                    
+                    if (documents.length > 0) {
+                        const firstDoc = documents[0];
+                        const officeName = await fetchOfficeName(firstDoc.office_id);
+                        selectDescription(firstDoc.id, firstDoc.description, firstDoc.office_id, officeName);
+                    }
+                } catch (err) {
+                    console.error('fetchDocuments error:', err);
+                    showToast('Error loading documents: ' + err.message, 'error');
+                }
+            }
+
+            function renderDescriptionFilters() {
+                let html = '';
+                if (documents.length === 0) {
+                    html = `
+                        <div class="text-center py-4 text-slate-400 text-sm">
+                            <i class="fas fa-info-circle mb-2 block"></i>
+                            No documents found
+                        </div>
+                    `;
+                } else {
+                    documents.forEach(doc => {
+                        const isActive = currentSelectedDocumentId === doc.id;
+                        html += `
+                            <button class="description-filter-btn w-full text-left px-3 py-2 rounded-lg transition-colors ${isActive ? 'active-filter' : 'hover:bg-slate-100 text-slate-700'}" data-id="${doc.id}" data-description="${doc.description}" data-office="${doc.office_id || ''}">
+                                <i class="fas fa-file-alt mr-2 ${isActive ? 'text-white' : 'text-slate-400'}"></i>
+                                ${doc.description}
+                            </button>
+                        `;
+                    });
+                }
+                descriptionFilterList.innerHTML = html;
+
+                document.querySelectorAll('.description-filter-btn').forEach(btn => {
+                    btn.addEventListener('click', async function() {
+                        const id = parseInt(this.dataset.id);
+                        const description = this.dataset.description;
+                        const officeId = this.dataset.office;
+                        const officeName = await fetchOfficeName(officeId);
+                        selectDescription(id, description, officeId, officeName);
+                    });
+                });
+            }
+
+            // ---------- SELECT DESCRIPTION ----------
+            function selectDescription(docId, description, officeId, officeName) {
+                currentSelectedDocumentId = docId;
+                currentSelectedDescription = description;
+                currentOfficeName = officeName || 'N/A';
+                renderDescriptionFilters();
+                
+                selectedDescriptionHeader.classList.remove('hidden');
+                selectedDescriptionTitle.textContent = description;
+                officeDisplay.textContent = currentOfficeName;
+                
+                fetchMonitoringRecords(description);
+            }
+
+            // ---------- FETCH MONITORING RECORDS ----------
+            async function fetchMonitoringRecords(description) {
+                if (!supabaseClient) {
+                    showToast('Supabase not connected', 'error');
+                    return;
+                }
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('monitoring')
+                        .select('*')
+                        .eq('description', description)
+                        .order('date', { ascending: false });
+                    if (error) throw error;
+                    monitoringData = data || [];
+                    renderRecords();
+                } catch (err) {
+                    console.error('fetchMonitoringRecords error:', err);
+                    showToast('Error loading monitoring records: ' + err.message, 'error');
+                    monitoringData = [];
+                    renderRecords();
+                }
+            }
+
+            // ---------- RENDER RECORDS ----------
+            function renderRecords() {
+                const list = monitoringData || [];
+                
+                totalRecords.textContent = list.length;
+                const uniqueDays = new Set(list.map(d => d.date)).size;
+                totalDays.textContent = uniqueDays;
+                
+                if (list.length === 0) {
+                    recordsTableBody.innerHTML = '';
+                    emptyRecords.classList.remove('hidden');
+                    return;
+                }
+                emptyRecords.classList.add('hidden');
+
+                let html = '';
+                list.forEach((record, idx) => {
+                    const rowNum = idx + 1;
+                    html += `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${rowNum}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">${record.date || ''}</td>
+                            <td class="px-6 py-4 text-sm text-slate-600">${escapeHtml(record.followup || '')}</td>
+                        </tr>
+                    `;
+                });
+                recordsTableBody.innerHTML = html;
+            }
+
+            function escapeHtml(text) {
+                if (!text) return '';
+                const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+                return text.replace(/[&<>"']/g, m => map[m]);
+            }
+
+            // ---------- GENERATE WORD REPORT (Connect to report.py) ----------
+            function generateWordReport() {
+                if (!currentSelectedDescription) {
+                    alert('Please select a description first.');
+                    return;
+                }
+
+                const list = monitoringData || [];
+                if (list.length === 0) {
+                    alert('No records found for this description.');
+                    return;
+                }
+
+                // Show loading state
+                generateReportBtn.disabled = true;
+                generateReportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Report...';
+
+                // Prepare data for Python script
+                const reportData = {
+                    description: currentSelectedDescription,
+                    office: currentOfficeName,
+                    records: monitoringData.map(r => ({
+                        date: r.date,
+                        followup: r.followup
+                    })),
+                    totalRecords: monitoringData.length,
+                    monitoringDays: new Set(monitoringData.map(d => d.date)).size,
+                    generatedAt: new Date().toISOString()
+                };
+
+                console.log('📤 Sending data to report.py:', reportData);
+
+                // ============================================================
+                // OPTION 1: Flask/FastAPI Server (Recommended)
+                // ============================================================
+                const apiUrl = window.location.origin + '/api/generate_report';
+                
+                // ============================================================
+                // OPTION 2: Direct CGI/PHP Bridge
+                // ============================================================
+                // const apiUrl = window.location.origin + '/cgi-bin/report.py';
+                // const apiUrl = window.location.origin + '/generate_report.php';
+
+                // ============================================================
+                // OPTION 3: Local Python Server
+                // ============================================================
+                // const apiUrl = 'http://localhost:5000/generate_report';
+
+                // Make the API call to Python script
+                fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(reportData)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        showToast('✅ Report generated successfully!', 'success');
+                        console.log('📄 Report saved:', data.filename);
+                        
+                        // If the server returns a download URL, open it
+                        if (data.download_url) {
+                            window.open(data.download_url, '_blank');
+                        }
+                    } else {
+                        showToast('❌ Error: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Connection error:', error);
+                    
+                    // Fallback: Generate report in browser
+                    showToast('⚠️ Python server not available. Generating in browser...', 'warning');
+                    generateReportInBrowser();
+                })
+                .finally(() => {
+                    // Reset button
+                    generateReportBtn.disabled = false;
+                    generateReportBtn.innerHTML = '<i class="fas fa-file-word"></i> Generate Word Report';
+                });
+            }
+
+            // ---------- FALLBACK: Generate Report in Browser ----------
+            function generateReportInBrowser() {
+                const list = monitoringData || [];
+                const now = new Date();
+                const dateStr = now.toLocaleDateString();
+                const timeStr = now.toLocaleTimeString();
+                const uniqueDays = new Set(list.map(d => d.date)).size;
+                const dateRange = list.length > 0 ? list[list.length - 1].date + ' to ' + list[0].date : 'N/A';
+
+                let tableRows = '';
+                list.forEach((record, idx) => {
+                    tableRows += `
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: center;">${idx + 1}</td>
+                            <td style="border: 1px solid #000; padding: 6px 8px;">${record.date || ''}</td>
+                            <td style="border: 1px solid #000; padding: 6px 8px;">${escapeHtml(record.followup || '')}</td>
+                        </tr>
+                    `;
+                });
+
+                const reportHTML = `
+                    <html xmlns:o='urn:schemas-microsoft-com:office:office' 
+                          xmlns:w='urn:schemas-microsoft-com:office:word' 
+                          xmlns='http://www.w3.org/TR/REC-html40'>
+                    <head>
+                        <meta charset="utf-8">
+                        <title>Monitoring Report</title>
+                        <!--[if gte mso 9]>
+                        <xml>
+                            <w:WordDocument>
+                                <w:View>Print</w:View>
+                            </w:WordDocument>
+                        </xml>
+                        <![endif]-->
+                        <style>
+                            body { font-family: Arial, sans-serif; font-size: 12px; padding: 40px; }
+                            .header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #6366f1; padding-bottom: 15px; }
+                            .header h1 { font-size: 22px; margin: 0; color: #1e293b; }
+                            .header p { margin: 4px 0; color: #475569; }
+                            .header .sub { font-size: 14px; font-weight: bold; color: #1e293b; }
+                            .header .meta { font-size: 11px; color: #94a3b8; }
+                            .summary { margin: 20px 0; background: #f8fafc; padding: 12px 16px; border-radius: 4px; }
+                            .summary table { width: 100%; }
+                            .summary td { padding: 4px 12px; }
+                            .summary strong { color: #1e293b; }
+                            table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+                            th { background-color: #6366f1; color: white; border: 1px solid #000; padding: 8px 10px; text-align: left; font-size: 11px; }
+                            td { border: 1px solid #000; padding: 6px 8px; font-size: 11px; }
+                            .total-row { background-color: #f1f5f9; font-weight: bold; }
+                            .total-row td { text-align: center; }
+                            .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h1>MONITORING DOCUMENT REPORT</h1>
+                            <p class="sub">Document Type: ${currentSelectedDescription}</p>
+                            <p>Office: ${currentOfficeName}</p>
+                            <p class="meta">Generated: ${dateStr} at ${timeStr}</p>
+                        </div>
+
+                        <div class="summary">
+                            <table>
+                                <tr>
+                                    <td><strong>Total Records:</strong> ${list.length}</td>
+                                    <td><strong>Monitoring Days:</strong> ${uniqueDays}</td>
+                                    <td><strong>Date Range:</strong> ${dateRange}</td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="text-align: center; width: 10%;">#</th>
+                                    <th style="width: 25%;">Date</th>
+                                    <th>Follow-up Respond</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tableRows}
+                            </tbody>
+                            <tfoot>
+                                <tr class="total-row">
+                                    <td colspan="3">Total Records: ${list.length}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+
+                        <div class="footer">
+                            <p>This report is automatically generated from the Monitoring Document System.</p>
+                            <p>Generated on ${dateStr} at ${timeStr}</p>
+                        </div>
+                    </body>
+                    </html>
+                `;
+
+                try {
+                    const blob = new Blob(['\uFEFF' + reportHTML], { 
+                        type: 'application/msword;charset=utf-8' 
+                    });
+                    
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `Monitoring_Report_${currentSelectedDescription.replace(/\s+/g, '_')}_${dateStr.replace(/\//g, '-')}.doc`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+
+                    showToast('Report generated in browser!', 'success');
+                } catch (err) {
+                    console.error('Report generation error:', err);
+                    showToast('Error generating report: ' + err.message, 'error');
+                }
+            }
+
+            // ---------- PRINT REPORT ----------
+            function printReport() {
+                if (!currentSelectedDescription) {
+                    alert('Please select a description first.');
+                    return;
+                }
+
+                const list = monitoringData || [];
+                if (list.length === 0) {
+                    alert('No records found for this description.');
+                    return;
+                }
+
+                window.print();
+            }
+
+            // ---------- TOAST ----------
+            let toastTimeout = null;
+
+            function showToast(msg, type = 'success') {
+                toastMessage.textContent = msg;
+                toastIcon.className = type === 'success' ? 'fas fa-check-circle text-green-400' :
+                    type === 'warning' ? 'fas fa-exclamation-triangle text-yellow-400' :
+                    'fas fa-exclamation-circle text-red-400';
+                toast.classList.remove('translate-y-20', 'opacity-0');
+                toast.classList.add('translate-y-0', 'opacity-100');
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => {
+                    toast.classList.remove('translate-y-0', 'opacity-100');
+                    toast.classList.add('translate-y-20', 'opacity-0');
+                }, 4000);
+            }
+
+            // ---------- EVENTS ----------
+            function bindEvents() {
+                showAllBtn.addEventListener('click', function() {
+                    currentSelectedDocumentId = null;
+                    currentSelectedDescription = null;
+                    selectedDescriptionHeader.classList.add('hidden');
+                    monitoringData = [];
+                    renderRecords();
+                    renderDescriptionFilters();
+                });
+
+                generateReportBtn.addEventListener('click', generateWordReport);
+                printReportBtn.addEventListener('click', printReport);
+            }
+
+            // ---------- INIT ----------
+            async function init() {
+                supabaseClient = initSupabase();
+                if (!supabaseClient) {
+                    showToast('Failed to connect to Supabase', 'error');
+                    return;
+                }
+                
+                await fetchDocuments();
+                bindEvents();
+                console.log('✅ Report generator ready');
+                console.log('🔗 Connect to Python server at: ' + window.location.origin + '/api/generate_report');
+            }
+
+            init();
+        })();
+    </script>
+</body>
+</html>
